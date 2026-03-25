@@ -578,6 +578,76 @@
     from { opacity: 0; }
     to { opacity: 1; }
   }
+
+  /* CONSENT CHECKBOX */
+  .consent-wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 24px;
+    text-align: left;
+  }
+
+  .consent-checkbox {
+    appearance: none;
+    -webkit-appearance: none;
+    min-width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .consent-checkbox:checked {
+    background: var(--sf-blue);
+    border-color: var(--sf-blue);
+  }
+
+  .consent-checkbox:checked::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 6px;
+    height: 10px;
+    border: 2px solid #fff;
+    border-top: none;
+    border-left: none;
+    transform: rotate(45deg);
+  }
+
+  .consent-checkbox.error {
+    border-color: var(--wrong);
+  }
+
+  .consent-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.45);
+    line-height: 1.6;
+    cursor: pointer;
+  }
+
+  .consent-label a {
+    color: var(--sf-sky);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .consent-error {
+    display: none;
+    font-size: 11px;
+    color: var(--wrong);
+    margin-top: -16px;
+    margin-bottom: 16px;
+    text-align: left;
+  }
+
+  .consent-error.visible { display: block; }
 </style>
 </head>
 <body>
@@ -829,21 +899,59 @@ function closeModal() {
   document.getElementById('prize-modal').classList.remove('visible');
 }
 
-// ✅ FIXED: Added quotes around the URL
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwdPqbFXMki3ypqiI-yWhvxIRDE0Ku_QYSLWzroM-kBs0moNsu6co0RqBAuT8WjayaO/exec";
+// -------------------------------------------------------
+// GOOGLE SHEETS INTEGRATION
+// 1. In Google Sheets, go to Extensions > Apps Script
+// 2. Paste the Apps Script code from the comment below
+// 3. Deploy as a Web App (Execute as: Me, Who has access: Anyone)
+// 4. Copy the deployment URL and replace GOOGLE_SCRIPT_URL below
+//
+// Apps Script code to paste:
+// -------------------------------------------------------
+// function doPost(e) {
+//   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+//   var data = JSON.parse(e.postData.contents);
+//   sheet.appendRow([
+//     new Date(),
+//     data.name,
+//     data.email,
+//     data.company,
+//     "5/5 - Prize Draw Entry"
+//   ]);
+//   return ContentService
+//     .createTextOutput(JSON.stringify({result: 'success'}))
+//     .setMimeType(ContentService.MimeType.JSON);
+// }
+// -------------------------------------------------------
+
+const GOOGLE_SCRIPT_URL = 'YOUR_GOOGLE_SCRIPT_URL_HERE';
 
 function submitEntry() {
   const name = document.getElementById('entry-name').value.trim();
   const email = document.getElementById('entry-email').value.trim();
   const company = document.getElementById('entry-company').value.trim();
+  const consent = document.getElementById('consent-checkbox').checked;
   const btn = document.querySelector('.btn-enter');
 
-  // Validate
-  if (!name || !email) {
-    document.getElementById('entry-name').style.borderColor = !name ? 'var(--wrong)' : 'var(--border)';
-    document.getElementById('entry-email').style.borderColor = !email ? 'var(--wrong)' : 'var(--border)';
-    return;
+  // Validate fields
+  let hasError = false;
+  document.getElementById('entry-name').style.borderColor = !name ? 'var(--wrong)' : 'var(--border)';
+  document.getElementById('entry-email').style.borderColor = !email ? 'var(--wrong)' : 'var(--border)';
+  if (!name || !email) hasError = true;
+
+  // Validate consent
+  const consentError = document.getElementById('consent-error');
+  const consentBox = document.getElementById('consent-checkbox');
+  if (!consent) {
+    consentBox.classList.add('error');
+    consentError.classList.add('visible');
+    hasError = true;
+  } else {
+    consentBox.classList.remove('error');
+    consentError.classList.remove('visible');
   }
+
+  if (hasError) return;
 
   // Reset borders
   document.getElementById('entry-name').style.borderColor = 'var(--border)';
@@ -858,14 +966,14 @@ function submitEntry() {
     method: 'POST',
     mode: 'no-cors',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email, company, score })
+    body: JSON.stringify({ name, email, company, consent: true })
   })
   .then(() => {
     document.getElementById('modal-form-wrap').style.display = 'none';
     document.getElementById('modal-success').classList.add('visible');
   })
-  .catch(err => {
-    console.warn('Fetch completed (no-cors mode):', err);
+  .catch(() => {
+    console.warn('Fetch catch fired — entry likely still submitted.');
     document.getElementById('modal-form-wrap').style.display = 'none';
     document.getElementById('modal-success').classList.add('visible');
   })
@@ -897,6 +1005,13 @@ document.getElementById('prize-modal').addEventListener('click', function(e) {
         <input class="modal-input" id="entry-email" type="email" placeholder="Work email address" autocomplete="email"/>
         <input class="modal-input" id="entry-company" type="text" placeholder="Company" autocomplete="organization"/>
       </div>
+      <div class="consent-wrap">
+        <input class="consent-checkbox" type="checkbox" id="consent-checkbox"/>
+        <label class="consent-label" for="consent-checkbox">
+          I consent to EPAM Systems, Inc. ("EPAM") processing my personal information as set out in the <a href="https://www.epam.com/privacy-policy" target="_blank">Privacy Policy</a> for marketing purposes and therefore to be contacted via the contact information I provided. Given the global nature of EPAM's business, such processing may take place outside of my home jurisdiction. The consent can be withdrawn at any time under the contact in the <a href="https://www.epam.com/privacy-policy" target="_blank">Privacy Policy</a>.
+        </label>
+      </div>
+      <div class="consent-error" id="consent-error">You must agree to the privacy policy to enter the prize draw.</div>
       <button class="btn-enter" onclick="submitEntry()">Enter the Prize Draw</button>
       <br/><br/>
       <button class="modal-skip" onclick="closeModal()">No thanks, skip</button>
